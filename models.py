@@ -3,61 +3,139 @@ import torch.nn as nn
 from torch.nn.parameter import Parameter
 
 
-class Generator(nn.Module):
-    def __init__(self, ngf=64, n_blocks=6):
-        assert (n_blocks >= 0)
-        super(Generator, self).__init__()
+class ConvBNReLU(nn.Sequential):
+    def __init__(self, in_planes, out_planes, kernel_size=3, stride=1, groups=1):
+        padding = (kernel_size - 1) // 2
+        super(ConvBNReLU, self).__init__(
+            nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False),
+            nn.BatchNorm2d(out_planes),
+            nn.ReLU(inplace=True)
+        )
+
+
+class ConvAdaLINReLU(nn.Module):
+    def __init__(self, in_planes, out_planes, kernel_size=3, stride=1, groups=1):
+        super(ConvAdaLINReLU, self).__init__()
+        padding = (kernel_size - 1) // 2
+        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False)
+        self.norm = adaILN(out_planes)
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, x, gamma, beta):
+        x = self.conv(x)
+        x = self.norm(x, gamma, beta)
+        x = self.relu(x)
+
+        return x
+
+
+class AdaLINInvertedResidual(nn.Module):
+    def __init__(self, inp, oup, stride, expand_ratio):
+        super(AdaLINInvertedResidual, self).__init__()
+        self.stride = stride
+        hidden_dim = int(round(inp * expand_ratio))
+        self.use_res_connect = self.stride == 1 and inp == oup
+        self.expand_ratio = expand_ratio
+        if expand_ratio != 1:
+            # pw
+            self.pw = ConvAdaLINReLU(inp, hidden_dim, kernel_size=1)
+            # dw
+        self.dw = ConvAdaLINReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim)
+        # pw-linear
+        self.pw_linear = nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)
+        self.norm = adaILN(oup)
+
+    def forward(self, x, gamma, beta):
+        if self.expand_ratio != 1:
+            x = self.pw(x, gamma, beta)
+            print(x.shape)
+        x = self.dw(x, gamma, beta)
+        x = self.pw_linear(x)
+        if self.use_res_connect:
+            return x + self.norm(x, gamma, beta)
+        else:
+            return self.norm(x, gamma, beta)
+
+
+class InvertedResidual(nn.Module):
+    def __init__(self, inp, oup, stride, expand_ratio):
+        super(InvertedResidual, self).__init__()
+        self.stride = stride
+        assert stride in [1, 2]
+
+        hidden_dim = int(round(inp * expand_ratio))
+        self.use_res_connect = self.stride == 1 and inp == oup
+
+        layers = []
+        if expand_ratio != 1:
+            # pw
+            layers.append(ConvBNReLU(inp, hidden_dim, kernel_size=1))
+        layers.extend([
+            # dw
+            ConvBNReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim),
+            # pw-linear
+            nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
+            nn.BatchNorm2d(oup),
+        ])
+        self.conv = nn.Sequential(*layers)
+
+    def forward(self, x):
+        if self.use_res_connect:
+            return x + self.conv(x)
+        else:
+            return self.conv(x)
+
+
+class FastGenerator(nn.Module):
+    def __init__(self, ngf=16, n_blocks=3):
+        super(FastGenerator, self).__init__()
         self.ngf = ngf
         self.n_blocks = n_blocks
-
         DownBlock = []
         DownBlock += [nn.ReflectionPad2d(3),
                       nn.Conv2d(3, ngf, kernel_size=7, stride=1, padding=0, bias=False),
                       nn.InstanceNorm2d(ngf),
                       nn.ReLU(True)]
 
-        # Down-Sampling
         n_downsampling = 2
         for i in range(n_downsampling):
-            mult = 2 ** i
             DownBlock += [nn.ReflectionPad2d(1),
-                          nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=0, bias=False),
-                          nn.InstanceNorm2d(ngf * mult * 2),
+                          nn.Conv2d(ngf, ngf, kernel_size=3, stride=2, padding=0, bias=False),
+                          nn.InstanceNorm2d(ngf),
                           nn.ReLU(True)]
 
-        # Down-Sampling Bottleneck
-        mult = 2 ** n_downsampling
+        # Bottleneck
         for i in range(n_blocks):
-            DownBlock += [ResnetBlock(ngf * mult, use_bias=False)]
+            DownBlock += [InvertedResidual(ngf, ngf, 1, 6)]
 
         # Class Activation Map
-        self.gap_fc = nn.Linear(ngf * mult, 1, bias=False)
-        self.gmp_fc = nn.Linear(ngf * mult, 1, bias=False)
-        self.conv1x1 = nn.Conv2d(ngf * mult * 2, ngf * mult, kernel_size=1, stride=1, bias=True)
+        self.gap_fc = nn.Linear(ngf, 1, bias=False)
+        self.gmp_fc = nn.Linear(ngf, 1, bias=False)
+        self.conv1x1 = nn.Conv2d(ngf * 2, ngf, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(True)
 
         # Gamma, Beta block
-        FC = [nn.Linear(ngf * mult, ngf * mult, bias=False),
+        FC = [nn.Linear(ngf, ngf, bias=False),
               nn.ReLU(True),
-              nn.Linear(ngf * mult, ngf * mult, bias=False),
+              nn.Linear(ngf, ngf, bias=False),
               nn.ReLU(True)]
 
-        self.gamma = nn.Linear(ngf * mult, ngf * mult, bias=False)
-        self.beta = nn.Linear(ngf * mult, ngf * mult, bias=False)
+        self.gamma = nn.Linear(ngf, ngf, bias=False)
+        self.beta = nn.Linear(ngf, ngf, bias=False)
 
         # Up-Sampling Bottleneck
         for i in range(n_blocks):
-            setattr(self, 'UpBlock1_' + str(i + 1), ResnetAdaILNBlock(ngf * mult, use_bias=False))
+            setattr(self, 'UpBlock1_' + str(i + 1), AdaLINInvertedResidual(ngf, ngf, 1, 1))
 
         # Up-Sampling
         UpBlock2 = []
         for i in range(n_downsampling):
-            mult = 2 ** (n_downsampling - i)
             UpBlock2 += [nn.Upsample(scale_factor=2, mode='nearest'),
                          nn.ReflectionPad2d(1),
-                         nn.Conv2d(ngf * mult, int(ngf * mult / 2), kernel_size=3, stride=1, padding=0, bias=False),
-                         ILN(int(ngf * mult / 2)),
+                         nn.Conv2d(ngf, int(ngf / 2), kernel_size=3, stride=1, padding=0, bias=False),
+                         ILN(int(ngf / 2)),
                          nn.ReLU(True)]
+            ngf = int(ngf / 2)
 
         UpBlock2 += [nn.ReflectionPad2d(3),
                      nn.Conv2d(ngf, 3, kernel_size=7, stride=1, padding=0, bias=False),
@@ -69,7 +147,6 @@ class Generator(nn.Module):
 
     def forward(self, input):
         x = self.DownBlock(input)
-
         gap = torch.nn.functional.adaptive_avg_pool2d(x, 1)
         gap_logit = self.gap_fc(gap.view(x.shape[0], -1))
         gap_weight = list(self.gap_fc.parameters())[0]
@@ -93,6 +170,7 @@ class Generator(nn.Module):
 
         for i in range(self.n_blocks):
             x = getattr(self, 'UpBlock1_' + str(i + 1))(x, gamma, beta)
+
         out = self.UpBlock2(x)
 
         return out, cam_logit, heatmap
