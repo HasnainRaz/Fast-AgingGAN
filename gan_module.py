@@ -36,8 +36,8 @@ class AgingGAN(pl.LightningModule):
         real_A, real_B = batch
 
         if optimizer_idx == 0:
-            fake_A2B, _, _ = self.genA2B(real_A)
-            fake_B2A, _, _ = self.genB2A(real_B)
+            fake_A2B = self.genA2B(real_A)
+            fake_B2A = self.genB2A(real_B)
 
             real_GA_logit, real_GA_cam_logit, _ = self.disGA(real_A)
             real_LA_logit, real_LA_cam_logit, _ = self.disLA(real_A)
