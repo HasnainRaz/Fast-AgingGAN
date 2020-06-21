@@ -54,7 +54,7 @@ class Generator(nn.Module):
 
         # Initial convolution block
         model = [nn.ReflectionPad2d(3),
-                 nn.Conv2d(3, ngf, 7),
+                 nn.Conv2d(3, ngf, 7, stride=2),
                  nn.InstanceNorm2d(ngf),
                  nn.ReLU(inplace=True)]
 
@@ -66,24 +66,25 @@ class Generator(nn.Module):
                       nn.InstanceNorm2d(out_features),
                       nn.ReLU(inplace=True)]
             in_features = out_features
-            out_features = in_features * 2
 
         # Residual blocks
         for _ in range(num_blocks):
             model += [BasicBlock(in_features, in_features, stride=1)]
 
         # Upsampling
-        out_features = in_features // 2
+        out_features = in_features * 2
         for _ in range(2):
-            model += [nn.ConvTranspose2d(in_features, out_features, 3, stride=2, padding=1, output_padding=1),
-                      nn.InstanceNorm2d(out_features),
+            model += [nn.Conv2d(in_features, out_features, 3, padding=1),
+                      nn.PixelShuffle(2),
+                      nn.InstanceNorm2d(in_features // 2),
                       nn.ReLU(inplace=True)]
-            in_features = out_features
-            out_features = in_features // 2
+            in_features = out_features // 4
+            out_features = in_features * 4
 
         # Output layer
         model += [nn.ReflectionPad2d(3),
-                  nn.Conv2d(ngf, 3, 7),
+                  nn.Conv2d(ngf, 3 * 4, 7, padding=0),
+                  nn.PixelShuffle(2),
                   nn.Tanh()]
 
         self.model = nn.Sequential(*model)

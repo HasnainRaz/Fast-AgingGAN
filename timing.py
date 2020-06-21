@@ -8,7 +8,8 @@ def time_model(model, input_size):
     count, duration = 0, 0
     for i in range(50):
         start = timer()
-        _ = model(torch.rand(size=input_size))
+        y = model(torch.rand(size=input_size))
+        print(y.shape)
         if i < 10:
             continue
         duration += timer() - start
