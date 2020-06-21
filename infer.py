@@ -8,7 +8,7 @@ import random
 import torch
 import yaml
 from torchvision import transforms
-from gan_module import FastGenerator
+from gan_module import Generator
 from PIL import Image
 
 parser = ArgumentParser()
@@ -23,8 +23,8 @@ def main():
                    x.endswith('.png') or x.endswith('.jpg')]
     with open(args.config) as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
-    model = FastGenerator(ngf=config['ngf'], n_blocks=config['n_blocks'])
-    ckpt = torch.load('lightning_logs/version_0/checkpoints/epoch=26.ckpt', map_location='cpu')
+    model = Generator(ngf=config['ngf'], num_blocks=config['n_blocks'])
+    ckpt = torch.load('checkpoints/epoch=11.ckpt', map_location='cpu')
     new_state_dict = {}
     for k, v in ckpt['state_dict'].items():
         if str(k).startswith('genA2B'):
@@ -42,7 +42,7 @@ def main():
     for i in range(6):
         img = Image.open(image_paths[i])
         img = trans(img).unsqueeze(0)
-        aged_face, _, _ = model(img)
+        aged_face = model(img)
         aged_face = (aged_face.squeeze().permute(1, 2, 0).numpy() + 1.0) / 2.0
         ax[0, i].imshow((img.squeeze().permute(1, 2, 0).numpy() + 1.0) / 2.0)
         ax[1, i].imshow(aged_face)

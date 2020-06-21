@@ -3,16 +3,15 @@ domainA_dir: '/home/hasnain/Datasets/processedCACDDomains/trainA'
 domainB_dir: '/home/hasnain/Datasets/processedCACDDomains/trainB'
 
 # Network Configs
-ngf: 32
+ngf: 16
 ndf: 32
-n_blocks: 4
+n_blocks: 6
 n_layers: 5
 
 # Loss configs:
 adv_weight: 2
 cycle_weight: 10
 identity_weight: 10
-cam_weight: 1000
 
 # Optimizer configs:
 lr: 0.0001
@@ -20,7 +19,7 @@ weight_decay: 0.0001
 
 # Training configs:
 img_size: 256
-batch_size: 3
+batch_size: 6
 num_workers: 4
 epochs: 100
 gpus:
