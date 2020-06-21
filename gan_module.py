@@ -8,7 +8,7 @@ from torchvision import transforms
 from torchvision.utils import make_grid
 
 from dataset import ImagetoImageDataset
-from models import FastGenerator, Discriminator, RhoClipper
+from models import Generator, Discriminator
 
 
 class AgingGAN(pl.LightningModule):
@@ -16,14 +16,12 @@ class AgingGAN(pl.LightningModule):
     def __init__(self, hparams):
         super(AgingGAN, self).__init__()
         self.hparams = hparams
-        self.genA2B = FastGenerator(hparams['ngf'], n_blocks=hparams['n_blocks'])
-        self.genB2A = FastGenerator(hparams['ngf'], n_blocks=hparams['n_blocks'])
+        self.genA2B = Generator(hparams['ngf'], num_blocks=hparams['n_blocks'])
+        self.genB2A = Generator(hparams['ngf'], num_blocks=hparams['n_blocks'])
         self.disGA = Discriminator(hparams['ndf'], hparams['n_layers'])
         self.disGB = Discriminator(hparams['ndf'], hparams['n_layers'])
         self.disLA = Discriminator(hparams['ndf'], hparams['n_layers'] - 2)
         self.disLB = Discriminator(hparams['ndf'], hparams['n_layers'] - 2)
-
-        self.Rho_clipper = RhoClipper(0, 1)
 
         # cache for generated images
         self.generated_A = None
@@ -79,14 +77,14 @@ class AgingGAN(pl.LightningModule):
             return output
 
         if optimizer_idx == 1:
-            fake_A2B, fake_A2B_cam_logit, _ = self.genA2B(real_A)
-            fake_B2A, fake_B2A_cam_logit, _ = self.genB2A(real_B)
+            fake_A2B = self.genA2B(real_A)
+            fake_B2A = self.genB2A(real_B)
 
-            fake_A2B2A, _, _ = self.genB2A(fake_A2B)
-            fake_B2A2B, _, _ = self.genA2B(fake_B2A)
+            fake_A2B2A = self.genB2A(fake_A2B)
+            fake_B2A2B = self.genA2B(fake_B2A)
 
-            fake_A2A, fake_A2A_cam_logit, _ = self.genB2A(real_A)
-            fake_B2B, fake_B2B_cam_logit, _ = self.genA2B(real_B)
+            fake_A2A = self.genB2A(real_A)
+            fake_B2B = self.genA2B(real_B)
 
             fake_GA_logit, fake_GA_cam_logit, _ = self.disGA(fake_B2A)
             fake_LA_logit, fake_LA_cam_logit, _ = self.disLA(fake_B2A)
@@ -108,23 +106,14 @@ class AgingGAN(pl.LightningModule):
             G_identity_loss_A = F.l1_loss(fake_A2A, real_A)
             G_identity_loss_B = F.l1_loss(fake_B2B, real_B)
 
-            G_cam_loss_A = F.binary_cross_entropy_with_logits(fake_B2A_cam_logit, torch.ones_like(
-                fake_B2A_cam_logit)) + F.binary_cross_entropy_with_logits(fake_A2A_cam_logit,
-                                                                          torch.zeros_like(fake_A2A_cam_logit))
-            G_cam_loss_B = F.binary_cross_entropy_with_logits(fake_A2B_cam_logit, torch.ones_like(
-                fake_A2B_cam_logit)) + F.binary_cross_entropy_with_logits(fake_B2B_cam_logit,
-                                                                          torch.zeros_like(fake_B2B_cam_logit))
-
             G_loss_A = self.hparams['adv_weight'] * (
                         G_ad_loss_GA + G_ad_cam_loss_GA + G_ad_loss_LA + G_ad_cam_loss_LA) + \
                        self.hparams['cycle_weight'] * G_recon_loss_A + self.hparams[
-                           'identity_weight'] * G_identity_loss_A + \
-                       self.hparams['cam_weight'] * G_cam_loss_A
+                           'identity_weight'] * G_identity_loss_A
             G_loss_B = self.hparams['adv_weight'] * (
                         G_ad_loss_GB + G_ad_cam_loss_GB + G_ad_loss_LB + G_ad_cam_loss_LB) + \
                        self.hparams['cycle_weight'] * G_recon_loss_B + self.hparams[
-                           'identity_weight'] * G_identity_loss_B + \
-                       self.hparams['cam_weight'] * G_cam_loss_B
+                           'identity_weight'] * G_identity_loss_B
 
             g_loss = G_loss_A + G_loss_B
             output = {

@@ -8,7 +8,7 @@ import random
 import torch
 import yaml
 from torchvision import transforms
-from gan_module import Generator
+from gan_module import FastGenerator
 from PIL import Image
 
 parser = ArgumentParser()
@@ -23,7 +23,7 @@ def main():
                    x.endswith('.png') or x.endswith('.jpg')]
     with open(args.config) as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
-    model = Generator(ngf=config['ngf'], n_blocks=config['n_blocks'])
+    model = FastGenerator(ngf=config['ngf'], n_blocks=config['n_blocks'])
     ckpt = torch.load('lightning_logs/version_0/checkpoints/epoch=26.ckpt', map_location='cpu')
     new_state_dict = {}
     for k, v in ckpt['state_dict'].items():

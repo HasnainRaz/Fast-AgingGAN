@@ -1,265 +1,116 @@
 import torch
 import torch.nn as nn
-from torch.nn.parameter import Parameter
 
 
-class ConvBNReLU(nn.Sequential):
-    def __init__(self, in_planes, out_planes, kernel_size=3, stride=1, groups=1):
-        padding = (kernel_size - 1) // 2
-        super(ConvBNReLU, self).__init__(
-            nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False),
-            nn.BatchNorm2d(out_planes),
-            nn.ReLU(inplace=True)
-        )
+def channel_shuffle(x, groups):
+    # type: (torch.Tensor, int) -> torch.Tensor
+    batchsize, num_channels, height, width = x.data.size()
+    channels_per_group = num_channels // groups
 
+    # reshape
+    x = x.view(batchsize, groups,
+               channels_per_group, height, width)
 
-class ConvAdaLINReLU(nn.Module):
-    def __init__(self, in_planes, out_planes, kernel_size=3, stride=1, groups=1):
-        super(ConvAdaLINReLU, self).__init__()
-        padding = (kernel_size - 1) // 2
-        self.conv = nn.Conv2d(in_planes, out_planes, kernel_size, stride, padding, groups=groups, bias=False)
-        self.norm = adaILN(out_planes)
-        self.relu = nn.ReLU(inplace=True)
+    x = torch.transpose(x, 1, 2).contiguous()
 
-    def forward(self, x, gamma, beta):
-        x = self.conv(x)
-        x = self.norm(x, gamma, beta)
-        x = self.relu(x)
+    # flatten
+    x = x.view(batchsize, -1, height, width)
 
-        return x
-
-
-class AdaLINInvertedResidual(nn.Module):
-    def __init__(self, inp, oup, stride, expand_ratio):
-        super(AdaLINInvertedResidual, self).__init__()
-        self.stride = stride
-        hidden_dim = int(round(inp * expand_ratio))
-        self.use_res_connect = self.stride == 1 and inp == oup
-        self.expand_ratio = expand_ratio
-        if expand_ratio != 1:
-            # pw
-            self.pw = ConvAdaLINReLU(inp, hidden_dim, kernel_size=1)
-            # dw
-        self.dw = ConvAdaLINReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim)
-        # pw-linear
-        self.pw_linear = nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False)
-        self.norm = adaILN(oup)
-
-    def forward(self, x, gamma, beta):
-        if self.expand_ratio != 1:
-            x = self.pw(x, gamma, beta)
-            print(x.shape)
-        x = self.dw(x, gamma, beta)
-        x = self.pw_linear(x)
-        if self.use_res_connect:
-            return x + self.norm(x, gamma, beta)
-        else:
-            return self.norm(x, gamma, beta)
+    return x
 
 
 class InvertedResidual(nn.Module):
-    def __init__(self, inp, oup, stride, expand_ratio):
+    def __init__(self, inp, oup, stride):
         super(InvertedResidual, self).__init__()
+
+        if not (1 <= stride <= 3):
+            raise ValueError('illegal stride value')
         self.stride = stride
-        assert stride in [1, 2]
 
-        hidden_dim = int(round(inp * expand_ratio))
-        self.use_res_connect = self.stride == 1 and inp == oup
+        branch_features = oup // 2
+        assert (self.stride != 1) or (inp == branch_features << 1)
 
-        layers = []
-        if expand_ratio != 1:
-            # pw
-            layers.append(ConvBNReLU(inp, hidden_dim, kernel_size=1))
-        layers.extend([
-            # dw
-            ConvBNReLU(hidden_dim, hidden_dim, stride=stride, groups=hidden_dim),
-            # pw-linear
-            nn.Conv2d(hidden_dim, oup, 1, 1, 0, bias=False),
-            nn.BatchNorm2d(oup),
-        ])
-        self.conv = nn.Sequential(*layers)
-
-    def forward(self, x):
-        if self.use_res_connect:
-            return x + self.conv(x)
+        if self.stride > 1:
+            self.branch1 = nn.Sequential(
+                self.depthwise_conv(inp, inp, kernel_size=3, stride=self.stride, padding=1),
+                nn.BatchNorm2d(inp),
+                nn.Conv2d(inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+                nn.BatchNorm2d(branch_features),
+                nn.ReLU(inplace=True),
+            )
         else:
-            return self.conv(x)
+            self.branch1 = nn.Sequential()
 
+        self.branch2 = nn.Sequential(
+            nn.Conv2d(inp if (self.stride > 1) else branch_features,
+                      branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(branch_features),
+            nn.ReLU(inplace=True),
+            self.depthwise_conv(branch_features, branch_features, kernel_size=3, stride=self.stride, padding=1),
+            nn.BatchNorm2d(branch_features),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
+            nn.BatchNorm2d(branch_features),
+            nn.ReLU(inplace=True),
+        )
 
-class FastGenerator(nn.Module):
-    def __init__(self, ngf=16, n_blocks=3):
-        super(FastGenerator, self).__init__()
-        self.ngf = ngf
-        self.n_blocks = n_blocks
-        DownBlock = []
-        DownBlock += [nn.ReflectionPad2d(3),
-                      nn.Conv2d(3, ngf, kernel_size=7, stride=1, padding=0, bias=False),
-                      nn.InstanceNorm2d(ngf),
-                      nn.ReLU(True)]
-
-        n_downsampling = 2
-        for i in range(n_downsampling):
-            DownBlock += [nn.ReflectionPad2d(1),
-                          nn.Conv2d(ngf, ngf, kernel_size=3, stride=2, padding=0, bias=False),
-                          nn.InstanceNorm2d(ngf),
-                          nn.ReLU(True)]
-
-        # Bottleneck
-        for i in range(n_blocks):
-            DownBlock += [InvertedResidual(ngf, ngf, 1, 6)]
-
-        # Class Activation Map
-        self.gap_fc = nn.Linear(ngf, 1, bias=False)
-        self.gmp_fc = nn.Linear(ngf, 1, bias=False)
-        self.conv1x1 = nn.Conv2d(ngf * 2, ngf, kernel_size=1, stride=1, bias=True)
-        self.relu = nn.ReLU(True)
-
-        # Gamma, Beta block
-        FC = [nn.Linear(ngf, ngf, bias=False),
-              nn.ReLU(True),
-              nn.Linear(ngf, ngf, bias=False),
-              nn.ReLU(True)]
-
-        self.gamma = nn.Linear(ngf, ngf, bias=False)
-        self.beta = nn.Linear(ngf, ngf, bias=False)
-
-        # Up-Sampling Bottleneck
-        for i in range(n_blocks):
-            setattr(self, 'UpBlock1_' + str(i + 1), AdaLINInvertedResidual(ngf, ngf, 1, 1))
-
-        # Up-Sampling
-        UpBlock2 = []
-        for i in range(n_downsampling):
-            UpBlock2 += [nn.Upsample(scale_factor=2, mode='nearest'),
-                         nn.ReflectionPad2d(1),
-                         nn.Conv2d(ngf, int(ngf / 2), kernel_size=3, stride=1, padding=0, bias=False),
-                         ILN(int(ngf / 2)),
-                         nn.ReLU(True)]
-            ngf = int(ngf / 2)
-
-        UpBlock2 += [nn.ReflectionPad2d(3),
-                     nn.Conv2d(ngf, 3, kernel_size=7, stride=1, padding=0, bias=False),
-                     nn.Tanh()]
-
-        self.DownBlock = nn.Sequential(*DownBlock)
-        self.FC = nn.Sequential(*FC)
-        self.UpBlock2 = nn.Sequential(*UpBlock2)
-
-    def forward(self, input):
-        x = self.DownBlock(input)
-        gap = torch.nn.functional.adaptive_avg_pool2d(x, 1)
-        gap_logit = self.gap_fc(gap.view(x.shape[0], -1))
-        gap_weight = list(self.gap_fc.parameters())[0]
-        gap = x * gap_weight.unsqueeze(2).unsqueeze(3)
-
-        gmp = torch.nn.functional.adaptive_max_pool2d(x, 1)
-        gmp_logit = self.gmp_fc(gmp.view(x.shape[0], -1))
-        gmp_weight = list(self.gmp_fc.parameters())[0]
-        gmp = x * gmp_weight.unsqueeze(2).unsqueeze(3)
-
-        cam_logit = torch.cat([gap_logit, gmp_logit], 1)
-        x = torch.cat([gap, gmp], 1)
-        x = self.relu(self.conv1x1(x))
-
-        heatmap = torch.sum(x, dim=1, keepdim=True)
-
-        x_ = torch.nn.functional.adaptive_avg_pool2d(x, 1)
-        x_ = self.FC(x_.view(x_.shape[0], -1))
-
-        gamma, beta = self.gamma(x_), self.beta(x_)
-
-        for i in range(self.n_blocks):
-            x = getattr(self, 'UpBlock1_' + str(i + 1))(x, gamma, beta)
-
-        out = self.UpBlock2(x)
-
-        return out, cam_logit, heatmap
-
-
-class ResnetBlock(nn.Module):
-    def __init__(self, dim, use_bias):
-        super(ResnetBlock, self).__init__()
-        conv_block = []
-        conv_block += [nn.ReflectionPad2d(1),
-                       nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=0, bias=use_bias),
-                       nn.InstanceNorm2d(dim),
-                       nn.ReLU(True)]
-
-        conv_block += [nn.ReflectionPad2d(1),
-                       nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=0, bias=use_bias),
-                       nn.InstanceNorm2d(dim)]
-
-        self.conv_block = nn.Sequential(*conv_block)
+    @staticmethod
+    def depthwise_conv(i, o, kernel_size, stride=1, padding=0, bias=False):
+        return nn.Conv2d(i, o, kernel_size, stride, padding, bias=bias, groups=i)
 
     def forward(self, x):
-        out = x + self.conv_block(x)
-        return out
+        if self.stride == 1:
+            x1, x2 = x.chunk(2, dim=1)
+            out = torch.cat((x1, self.branch2(x2)), dim=1)
+        else:
+            out = torch.cat((self.branch1(x), self.branch2(x)), dim=1)
 
-
-class ResnetAdaILNBlock(nn.Module):
-    def __init__(self, dim, use_bias):
-        super(ResnetAdaILNBlock, self).__init__()
-        self.pad1 = nn.ReflectionPad2d(1)
-        self.conv1 = nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=0, bias=use_bias)
-        self.norm1 = adaILN(dim)
-        self.relu1 = nn.ReLU(True)
-
-        self.pad2 = nn.ReflectionPad2d(1)
-        self.conv2 = nn.Conv2d(dim, dim, kernel_size=3, stride=1, padding=0, bias=use_bias)
-        self.norm2 = adaILN(dim)
-
-    def forward(self, x, gamma, beta):
-        out = self.pad1(x)
-        out = self.conv1(out)
-        out = self.norm1(out, gamma, beta)
-        out = self.relu1(out)
-        out = self.pad2(out)
-        out = self.conv2(out)
-        out = self.norm2(out, gamma, beta)
-
-        return out + x
-
-
-class adaILN(nn.Module):
-    def __init__(self, num_features, eps=1e-5):
-        super(adaILN, self).__init__()
-        self.eps = eps
-        self.rho = Parameter(torch.Tensor(1, num_features, 1, 1))
-        self.rho.data.fill_(0.9)
-
-    def forward(self, input, gamma, beta):
-        in_mean, in_var = torch.mean(input, dim=[2, 3], keepdim=True), torch.var(input, dim=[2, 3], keepdim=True)
-        out_in = (input - in_mean) / torch.sqrt(in_var + self.eps)
-        ln_mean, ln_var = torch.mean(input, dim=[1, 2, 3], keepdim=True), torch.var(input, dim=[1, 2, 3], keepdim=True)
-        out_ln = (input - ln_mean) / torch.sqrt(ln_var + self.eps)
-        out = self.rho.expand(input.shape[0], -1, -1, -1) * out_in + (
-                1 - self.rho.expand(input.shape[0], -1, -1, -1)) * out_ln
-        out = out * gamma.unsqueeze(2).unsqueeze(3) + beta.unsqueeze(2).unsqueeze(3)
+        out = channel_shuffle(out, 2)
 
         return out
 
 
-class ILN(nn.Module):
-    def __init__(self, num_features, eps=1e-5):
-        super(ILN, self).__init__()
-        self.eps = eps
-        self.rho = Parameter(torch.Tensor(1, num_features, 1, 1))
-        self.gamma = Parameter(torch.Tensor(1, num_features, 1, 1))
-        self.beta = Parameter(torch.Tensor(1, num_features, 1, 1))
-        self.rho.data.fill_(0.0)
-        self.gamma.data.fill_(1.0)
-        self.beta.data.fill_(0.0)
+class Generator(nn.Module):
+    def __init__(self, ngf, num_blocks=6):
+        super(Generator, self).__init__()
 
-    def forward(self, input):
-        in_mean, in_var = torch.mean(input, dim=[2, 3], keepdim=True), torch.var(input, dim=[2, 3], keepdim=True)
-        out_in = (input - in_mean) / torch.sqrt(in_var + self.eps)
-        ln_mean, ln_var = torch.mean(input, dim=[1, 2, 3], keepdim=True), torch.var(input, dim=[1, 2, 3], keepdim=True)
-        out_ln = (input - ln_mean) / torch.sqrt(ln_var + self.eps)
-        out = self.rho.expand(input.shape[0], -1, -1, -1) * out_in + (
-                1 - self.rho.expand(input.shape[0], -1, -1, -1)) * out_ln
-        out = out * self.gamma.expand(input.shape[0], -1, -1, -1) + self.beta.expand(input.shape[0], -1, -1, -1)
+        # Initial convolution block
+        model = [nn.ReflectionPad2d(3),
+                 nn.Conv2d(3, ngf, 7),
+                 nn.InstanceNorm2d(ngf),
+                 nn.ReLU(inplace=True)]
 
-        return out
+        # Downsampling
+        in_features = ngf
+        out_features = in_features * 2
+        for _ in range(2):
+            model += [nn.Conv2d(in_features, out_features, 3, stride=2, padding=1),
+                      nn.InstanceNorm2d(out_features),
+                      nn.ReLU(inplace=True)]
+            in_features = out_features
+            out_features = in_features * 2
+
+        # Residual blocks
+        for _ in range(num_blocks):
+            model += [InvertedResidual(in_features, in_features, stride=1)]
+
+        # Upsampling
+        out_features = in_features // 2
+        for _ in range(2):
+            model += [nn.ConvTranspose2d(in_features, out_features, 3, stride=2, padding=1, output_padding=1),
+                      nn.InstanceNorm2d(out_features),
+                      nn.ReLU(inplace=True)]
+            in_features = out_features
+            out_features = in_features // 2
+
+        # Output layer
+        model += [nn.ReflectionPad2d(3),
+                  nn.Conv2d(ngf, 3, 7),
+                  nn.Tanh()]
+
+        self.model = nn.Sequential(*model)
+
+    def forward(self, x):
+        return self.model(x)
 
 
 class Discriminator(nn.Module):
@@ -319,17 +170,3 @@ class Discriminator(nn.Module):
         out = self.conv(x)
 
         return out, cam_logit, heatmap
-
-
-class RhoClipper(object):
-
-    def __init__(self, min, max):
-        self.clip_min = min
-        self.clip_max = max
-        assert min < max
-
-    def __call__(self, module):
-        if hasattr(module, 'rho'):
-            w = module.rho.data
-            w = w.clamp(self.clip_min, self.clip_max)
-            module.rho.data = w
