@@ -23,8 +23,6 @@ class AgingGAN(pl.LightningModule):
         self.disLA = Discriminator(hparams['ndf'], hparams['n_layers'] - 2)
         self.disLB = Discriminator(hparams['ndf'], hparams['n_layers'] - 2)
 
-        self.Rho_clipper = RhoClipper(0, 1)
-
         # cache for generated images
         self.generated_A = None
         self.generated_B = None

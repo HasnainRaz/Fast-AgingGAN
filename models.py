@@ -4,7 +4,7 @@ from torch.nn.parameter import Parameter
 
 
 class Generator(nn.Module):
-    def __init__(self, ngf=64, n_blocks=6):
+    def __init__(self, ngf=32, n_blocks=3):
         assert (n_blocks >= 0)
         super(Generator, self).__init__()
         self.ngf = ngf
@@ -19,44 +19,41 @@ class Generator(nn.Module):
         # Down-Sampling
         n_downsampling = 2
         for i in range(n_downsampling):
-            mult = 2 ** i
             DownBlock += [nn.ReflectionPad2d(1),
-                          nn.Conv2d(ngf * mult, ngf * mult * 2, kernel_size=3, stride=2, padding=0, bias=False),
-                          nn.InstanceNorm2d(ngf * mult * 2),
+                          nn.Conv2d(ngf, ngf, kernel_size=3, stride=2, padding=0, bias=False),
+                          nn.InstanceNorm2d(ngf),
                           nn.ReLU(True)]
 
         # Down-Sampling Bottleneck
-        mult = 2 ** n_downsampling
         for i in range(n_blocks):
-            DownBlock += [ResnetBlock(ngf * mult, use_bias=False)]
+            DownBlock += [ResnetBlock(ngf, use_bias=False)]
 
         # Class Activation Map
-        self.gap_fc = nn.Linear(ngf * mult, 1, bias=False)
-        self.gmp_fc = nn.Linear(ngf * mult, 1, bias=False)
-        self.conv1x1 = nn.Conv2d(ngf * mult * 2, ngf * mult, kernel_size=1, stride=1, bias=True)
+        self.gap_fc = nn.Linear(ngf, 1, bias=False)
+        self.gmp_fc = nn.Linear(ngf, 1, bias=False)
+        self.conv1x1 = nn.Conv2d(ngf * 2, ngf, kernel_size=1, stride=1, bias=True)
         self.relu = nn.ReLU(True)
 
         # Gamma, Beta block
-        FC = [nn.Linear(ngf * mult, ngf * mult, bias=False),
+        FC = [nn.Linear(ngf, ngf, bias=False),
               nn.ReLU(True),
-              nn.Linear(ngf * mult, ngf * mult, bias=False),
+              nn.Linear(ngf, ngf, bias=False),
               nn.ReLU(True)]
 
-        self.gamma = nn.Linear(ngf * mult, ngf * mult, bias=False)
-        self.beta = nn.Linear(ngf * mult, ngf * mult, bias=False)
+        self.gamma = nn.Linear(ngf, ngf, bias=False)
+        self.beta = nn.Linear(ngf, ngf, bias=False)
 
         # Up-Sampling Bottleneck
         for i in range(n_blocks):
-            setattr(self, 'UpBlock1_' + str(i + 1), ResnetAdaILNBlock(ngf * mult, use_bias=False))
+            setattr(self, 'UpBlock1_' + str(i + 1), ResnetAdaILNBlock(ngf, use_bias=False))
 
         # Up-Sampling
         UpBlock2 = []
         for i in range(n_downsampling):
-            mult = 2 ** (n_downsampling - i)
             UpBlock2 += [nn.Upsample(scale_factor=2, mode='nearest'),
                          nn.ReflectionPad2d(1),
-                         nn.Conv2d(ngf * mult, int(ngf * mult / 2), kernel_size=3, stride=1, padding=0, bias=False),
-                         ILN(int(ngf * mult / 2)),
+                         nn.Conv2d(ngf, ngf, kernel_size=3, stride=1, padding=0, bias=False),
+                         ILN(int(ngf)),
                          nn.ReLU(True)]
 
         UpBlock2 += [nn.ReflectionPad2d(3),
@@ -241,17 +238,3 @@ class Discriminator(nn.Module):
         out = self.conv(x)
 
         return out, cam_logit, heatmap
-
-
-class RhoClipper(object):
-
-    def __init__(self, min, max):
-        self.clip_min = min
-        self.clip_max = max
-        assert min < max
-
-    def __call__(self, module):
-        if hasattr(module, 'rho'):
-            w = module.rho.data
-            w = w.clamp(self.clip_min, self.clip_max)
-            module.rho.data = w
