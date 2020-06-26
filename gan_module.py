@@ -8,7 +8,7 @@ from torchvision import transforms
 from torchvision.utils import make_grid
 
 from dataset import ImagetoImageDataset
-from models import Generator, Discriminator, RhoClipper
+from models import FastGenerator, Discriminator, RhoClipper
 
 
 class AgingGAN(pl.LightningModule):
@@ -16,8 +16,8 @@ class AgingGAN(pl.LightningModule):
     def __init__(self, hparams):
         super(AgingGAN, self).__init__()
         self.hparams = hparams
-        self.genA2B = Generator(hparams['ngf'], n_blocks=hparams['n_blocks'])
-        self.genB2A = Generator(hparams['ngf'], n_blocks=hparams['n_blocks'])
+        self.genA2B = FastGenerator(hparams['ngf'], n_blocks=hparams['n_blocks'])
+        self.genB2A = FastGenerator(hparams['ngf'], n_blocks=hparams['n_blocks'])
         self.disGA = Discriminator(hparams['ndf'], hparams['n_layers'])
         self.disGB = Discriminator(hparams['ndf'], hparams['n_layers'])
         self.disLA = Discriminator(hparams['ndf'], hparams['n_layers'] - 2)
