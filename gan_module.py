@@ -44,7 +44,7 @@ class AgingGAN(pl.LightningModule):
 
             # GAN loss
             fake_B = self.genA2B(real_A)
-            pred_fake = self.discGB(fake_B)
+            pred_fake = self.disGB(fake_B)
             loss_GAN_A2B = F.mse_loss(pred_fake, torch.ones(pred_fake.shape).type_as(pred_fake)) * self.hparams[
                 'adv_weight']
 
@@ -80,7 +80,7 @@ class AgingGAN(pl.LightningModule):
             loss_D_real = F.mse_loss(pred_real, torch.ones(pred_real.shape).type_as(pred_real))
 
             # Fake loss
-            fake_A = self.fake_A
+            fake_A = self.generated_A
             pred_fake = self.disGA(fake_A.detach())
             loss_D_fake = F.mse_loss(pred_fake, torch.zeros(pred_fake.shape).type_as(pred_fake))
 
@@ -92,7 +92,7 @@ class AgingGAN(pl.LightningModule):
             loss_D_real = F.mse_loss(pred_real, torch.ones(pred_real.shape).type_as(pred_real))
 
             # Fake loss
-            fake_B = self.fake_B
+            fake_B = self.generated_B
             pred_fake = self.disGB(fake_B.detach())
             loss_D_fake = F.mse_loss(pred_fake, torch.zeros(pred_fake.shape).type_as(pred_fake))
 
