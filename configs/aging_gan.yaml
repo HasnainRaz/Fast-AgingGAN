@@ -5,7 +5,7 @@ domainB_dir: '/home/hasnain/Datasets/processedCACDDomains/trainB'
 # Network Configs
 ngf: 32
 ndf: 32
-n_blocks: 4
+n_blocks: 3
 n_layers: 5
 
 # Loss configs:
