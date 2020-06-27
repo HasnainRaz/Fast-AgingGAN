@@ -19,7 +19,7 @@ def time_model(model, input_size):
 
 def main():
     from models import Generator
-    model = Generator()
+    model = Generator(32, 9)
     duration = time_model(model, [1, 3, 512, 512])
     print("Time Taken (excluding warmup): ", duration)
 

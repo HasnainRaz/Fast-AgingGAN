@@ -24,13 +24,13 @@ def main():
     with open(args.config) as file:
         config = yaml.load(file, Loader=yaml.FullLoader)
     model = Generator(ngf=config['ngf'], n_blocks=config['n_blocks'])
-    ckpt = torch.load('lightning_logs/version_0/checkpoints/epoch=26.ckpt', map_location='cpu')
+    ckpt = torch.load('checkpoints/epoch=18.ckpt', map_location='cpu')
     new_state_dict = {}
     for k, v in ckpt['state_dict'].items():
         if str(k).startswith('genA2B'):
             new_state_dict[str(k).replace('genA2B.', '')] = v
     model.load_state_dict(new_state_dict)
-    model.eval()
+
 
     trans = transforms.Compose([
         transforms.Resize((512, 512)),
