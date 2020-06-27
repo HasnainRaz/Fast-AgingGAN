@@ -122,9 +122,7 @@ class AgingGAN(pl.LightningModule):
                                    lr=self.hparams['lr'], betas=(0.5, 0.999),
                                    weight_decay=self.hparams['weight_decay'])
         d_optim = torch.optim.Adam(itertools.chain(self.disGA.parameters(),
-                                                   self.disGB.parameters(),
-                                                   self.disLA.parameters(),
-                                                   self.disLB.parameters()),
+                                                   self.disGB.parameters()),
                                    lr=self.hparams['lr'],
                                    betas=(0.5, 0.999),
                                    weight_decay=self.hparams['weight_decay'])
