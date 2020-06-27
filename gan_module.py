@@ -72,6 +72,19 @@ class AgingGAN(pl.LightningModule):
 
             self.real_B = real_B
             self.real_A = real_A
+
+            # Log to tb
+            if batch_idx % 500 == 0:
+                self.logger.experiment.add_image('Real/A', make_grid(self.real_A, normalize=True, scale_each=True),
+                                                 self.current_epoch)
+                self.logger.experiment.add_image('Real/B', make_grid(self.real_B, normalize=True, scale_each=True),
+                                                 self.current_epoch)
+                self.logger.experiment.add_image('Generated/A',
+                                                 make_grid(self.generated_A, normalize=True, scale_each=True),
+                                                 self.current_epoch)
+                self.logger.experiment.add_image('Generated/B',
+                                                 make_grid(self.generated_B, normalize=True, scale_each=True),
+                                                 self.current_epoch)
             return output
 
         if optimizer_idx == 1:
@@ -104,18 +117,6 @@ class AgingGAN(pl.LightningModule):
                 'log': {'Loss/Discriminator': d_loss}
             }
             return output
-
-        if batch_idx % 500 == 0:
-            self.logger.experiment.add_image('Real/A', make_grid(self.real_A, normalize=True, scale_each=True),
-                                             self.current_epoch)
-            self.logger.experiment.add_image('Real/B', make_grid(self.real_B, normalize=True, scale_each=True),
-                                             self.current_epoch)
-            self.logger.experiment.add_image('Generated/A',
-                                             make_grid(self.generated_A, normalize=True, scale_each=True),
-                                             self.current_epoch)
-            self.logger.experiment.add_image('Generated/B',
-                                             make_grid(self.generated_B, normalize=True, scale_each=True),
-                                             self.current_epoch)
 
     def configure_optimizers(self):
         g_optim = torch.optim.Adam(itertools.chain(self.genA2B.parameters(), self.genB2A.parameters()),
