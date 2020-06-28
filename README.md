@@ -2,6 +2,7 @@
 This repository holds code for a face aging deep learning. It is based on the CycleGAN, where we translate young faces to old and vice versa.
 
 # Samples
+Top row is input image, bottom row is aged output from the GAN.
 ![Sample](https://user-images.githubusercontent.com/4294680/85948737-c31aed00-b952-11ea-9269-eeca04ddf073.png)
 ![Another-Sample](https://user-images.githubusercontent.com/4294680/85948739-c4e4b080-b952-11ea-8545-639732cfd284.png)
 
