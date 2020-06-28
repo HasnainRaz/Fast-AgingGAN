@@ -5,14 +5,12 @@ domainB_dir: '/home/hasnain/Datasets/processedCACDDomains/trainB'
 # Network Configs
 ngf: 32
 ndf: 32
-n_blocks: 4
-n_layers: 5
+n_blocks: 9
 
 # Loss configs:
 adv_weight: 2
 cycle_weight: 10
-identity_weight: 10
-cam_weight: 1000
+identity_weight: 7
 
 # Optimizer configs:
 lr: 0.0001

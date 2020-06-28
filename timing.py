@@ -1,8 +1,6 @@
-import torch
 from timeit import default_timer as timer
 
 import torch
-import yaml
 
 
 def time_model(model, input_size):
@@ -20,8 +18,8 @@ def time_model(model, input_size):
 
 
 def main():
-    from models import FastGenerator
-    model = FastGenerator()
+    from models import Generator
+    model = Generator(32, 9)
     duration = time_model(model, [1, 3, 512, 512])
     print("Time Taken (excluding warmup): ", duration)
 
