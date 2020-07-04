@@ -3,9 +3,8 @@ This repository holds code for a face aging deep learning. It is based on the Cy
 
 # Samples
 Top row is input image, bottom row is aged output from the GAN.
-![Sample](https://user-images.githubusercontent.com/4294680/85948737-c31aed00-b952-11ea-9269-eeca04ddf073.png)
-![Another-Sample](https://user-images.githubusercontent.com/4294680/85948739-c4e4b080-b952-11ea-8545-639732cfd284.png)
-
+![Sample](https://user-images.githubusercontent.com/4294680/86517626-b4d54100-be2a-11ea-8cf1-7e4e088f96a3.png)
+![Second-Sample](https://user-images.githubusercontent.com/4294680/86517663-f5cd5580-be2a-11ea-9e39-51ddf8be2084.png)
 # Timing
 The model executes at 66fps on a GTX1080 with an image size of 512x512. Because of the way it is trained, a face detection pipeline is not needed. As long as the image of spatial dims 512x512 contains a face of size 256x256, this will work fine.
 
