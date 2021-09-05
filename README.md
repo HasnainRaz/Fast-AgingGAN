@@ -18,11 +18,11 @@ python infer.py --image_dir 'path/to/your/image/directory'
 To train your own model on CACD or UTK faces datasets, you can use the provided preprocessing scripts in the preprocessing directory to prepare the dataset.
 If you are going to use CACD, use the following command:
 ```bash
-python preprocessing/preprocessing_cacd.py --image_dir '/path/to/cacd/images' --metadata '/path/to/the/cacd/metadata/file' --output_dir 'path/to/save/processed/data'
+python preprocessing/preprocess_cacd.py --image_dir '/path/to/cacd/images' --metadata '/path/to/the/cacd/metadata/file' --output_dir 'path/to/save/processed/data'
 ```
 If using UTK faces, use the following:
 ```bash
-python preprocessing/preprocessing_utk.py --data_dir '/path/to/cacd/images' --output_dir 'path/to/save/processed/data'
+python preprocessing/preprocess_utk.py --data_dir '/path/to/cacd/images' --output_dir 'path/to/save/processed/data'
 ```
 
 Once the dataset is processed, you should go into ``` configs/aging_gan.yaml``` and modify the paths to point to the processed dataset you just created. Change any other hyperparameters if you wish, then run training with:
