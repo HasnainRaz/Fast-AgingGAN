@@ -3,3 +3,6 @@ __pycache__
 __MACOSX
 lightning_logs
 checkpoints
+/test_images
+/.venv
+/mygraph.png
