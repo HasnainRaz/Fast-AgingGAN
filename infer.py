@@ -32,7 +32,7 @@ def main():
     fig, ax = plt.subplots(2, nr_images, figsize=(20, 10))
     random.shuffle(image_paths)
     for i in range(nr_images):
-        img = Image.open(image_paths[i])
+        img = Image.open(image_paths[i]).convert('RGB')
         img = trans(img).unsqueeze(0)
         aged_face = model(img)
         aged_face = (aged_face.squeeze().permute(1, 2, 0).numpy() + 1.0) / 2.0
