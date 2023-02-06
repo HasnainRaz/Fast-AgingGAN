@@ -3,6 +3,8 @@ import os
 from PIL import Image
 from torch.utils.data import Dataset
 
+import numpy as np
+
 IMG_EXTENSIONS = ["png", "jpg"]
 
 class ImagetoImageDataset(Dataset):
@@ -18,8 +20,8 @@ class ImagetoImageDataset(Dataset):
         return min(len(self.imagesA), len(self.imagesB))
 
     def __getitem__(self, idx):
-        imageA = Image.open(self.imagesA[idx])
-        imageB = Image.open(self.imagesB[idx])
+        imageA = np.array(Image.open(self.imagesA[idx]).convert("RGB"))
+        imageB = np.array(Image.open(self.imagesB[idx]).convert("RGB"))
 
         if self.transforms is not None:
             imageA = self.transforms(imageA)

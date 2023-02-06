@@ -131,6 +131,7 @@ class AgingGAN(pl.LightningModule):
 
     def train_dataloader(self):
         train_transform = transforms.Compose([
+            transforms.ToPILImage(),
             transforms.RandomHorizontalFlip(),
             transforms.Resize((self.hparams['img_size'] + 30, self.hparams['img_size'] + 30)),
             transforms.RandomCrop(self.hparams['img_size']),
