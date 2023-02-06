@@ -3,13 +3,14 @@ import os
 from PIL import Image
 from torch.utils.data import Dataset
 
+IMG_EXTENSIONS = ["png", "jpg"]
 
 class ImagetoImageDataset(Dataset):
     def __init__(self, domainA_dir, domainB_dir, transforms=None):
         self.imagesA = [os.path.join(domainA_dir, x) for x in os.listdir(domainA_dir) if
-                        x.endswith('.png') or x.endswith('jpg')]
+                        x.lower().endswith(tuple(IMG_EXTENSIONS))]
         self.imagesB = [os.path.join(domainB_dir, x) for x in os.listdir(domainB_dir) if
-                        x.endswith('.png') or x.endswith('jpg')]
+                        x.lower().endswith(tuple(IMG_EXTENSIONS))]
 
         self.transforms = transforms
 

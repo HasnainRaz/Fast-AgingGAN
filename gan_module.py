@@ -15,7 +15,7 @@ class AgingGAN(pl.LightningModule):
 
     def __init__(self, hparams):
         super(AgingGAN, self).__init__()
-        self.hparams = hparams
+        self.save_hyperparameters(hparams)
         self.genA2B = Generator(hparams['ngf'], n_residual_blocks=hparams['n_blocks'])
         self.genB2A = Generator(hparams['ngf'], n_residual_blocks=hparams['n_blocks'])
         self.disGA = Discriminator(hparams['ndf'])
