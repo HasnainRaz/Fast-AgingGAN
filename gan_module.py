@@ -67,7 +67,7 @@ class AgingGAN(pl.LightningModule):
                 'loss': g_loss,
                 'log': {'Loss/Generator': g_loss}
             }
-            self.log('Loss/Generator': g_loss)
+            self.log('Loss/Generator', g_loss)
 
             self.generated_B = fake_B
             self.generated_A = fake_A
@@ -118,7 +118,7 @@ class AgingGAN(pl.LightningModule):
                 'loss': d_loss,
                 'log': {'Loss/Discriminator': d_loss}
             }
-            self.log('Loss/Discriminator': d_loss)
+            self.log('Loss/Discriminator', d_loss)
 
             return output
 
