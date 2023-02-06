@@ -23,10 +23,12 @@ class ImagetoImageDataset(Dataset):
         return max(self.lenA, self.lenB)
 
     def __getitem__(self, idx):
+        idx_a = idx_b = idx
         if idx > self.lenA:
             idx_a = np.random.randint(self.lenA)
         if idx > self.lenB:
             idx_b = np.random.randint(self.lenB)
+        
         imageA = np.array(Image.open(self.imagesA[idx_a]).convert("RGB"))
         imageB = np.array(Image.open(self.imagesB[idx_b]).convert("RGB"))
 
