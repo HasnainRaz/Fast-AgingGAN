@@ -16,12 +16,19 @@ class ImagetoImageDataset(Dataset):
 
         self.transforms = transforms
 
+        self.lenA = len(self.imagesA)
+        self.lenB = len(self.imagesB)
+
     def __len__(self):
-        return min(len(self.imagesA), len(self.imagesB))
+        return max(self.lenA, self.lenB)
 
     def __getitem__(self, idx):
-        imageA = np.array(Image.open(self.imagesA[idx]).convert("RGB"))
-        imageB = np.array(Image.open(self.imagesB[idx]).convert("RGB"))
+        if idx > self.lenA:
+            idx_a = np.random.randint(self.lenA)
+        if idx > self.lenB:
+            idx_b = np.random.randint(self.lenB)
+        imageA = np.array(Image.open(self.imagesA[idx_a]).convert("RGB"))
+        imageB = np.array(Image.open(self.imagesB[idx_b]).convert("RGB"))
 
         if self.transforms is not None:
             imageA = self.transforms(imageA)
