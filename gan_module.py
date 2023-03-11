@@ -77,6 +77,10 @@ class AgingGAN(pl.LightningModule):
 
             # Log to tb
             if batch_idx % 500 == 0:
+                self.genA2B.eval()
+                self.genb2A.eval()
+                fake_A = self.genB2A(real_B)
+                fake_B = self.genA2B(real_A)
                 self.logger.experiment.add_image('Real/A', make_grid(self.real_A, normalize=True, scale_each=True),
                                                  self.current_epoch)
                 self.logger.experiment.add_image('Real/B', make_grid(self.real_B, normalize=True, scale_each=True),
@@ -87,6 +91,8 @@ class AgingGAN(pl.LightningModule):
                 self.logger.experiment.add_image('Generated/B',
                                                  make_grid(self.generated_B, normalize=True, scale_each=True),
                                                  self.current_epoch)
+                self.genA2B.train()
+                self.genb2A.train()
             return output
 
         if optimizer_idx == 1:
