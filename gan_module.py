@@ -145,15 +145,9 @@ class AgingGAN(pl.LightningModule):
             transforms.RandomHorizontalFlip(),
             transforms.Resize((self.hparams['img_size'] + 50, self.hparams['img_size'] + 50)),
             transforms.RandomCrop(self.hparams['img_size']),
-<<<<<<< HEAD
-            transforms.RandomRotation(degrees=(0, 90)),
-            transforms.RandomPerspective(p=0.4),
-            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.3),
-=======
             #transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.3),
             #transforms.RandomPerspective(p=0.5),
             transforms.RandomRotation(degrees=(0, int(self.hparams['augment_rotation']))),
->>>>>>> a88f38681cd8d94222578a0d0c4890805c62f36a
             transforms.ToTensor(),
             transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
         ])
