@@ -78,7 +78,7 @@ class AgingGAN(pl.LightningModule):
             # Log to tb
             if batch_idx % 500 == 0:
                 self.genA2B.eval()
-                self.genb2A.eval()
+                self.genB2A.eval()
                 fake_A = self.genB2A(real_B)
                 fake_B = self.genA2B(real_A)
                 self.logger.experiment.add_image('Real/A', make_grid(self.real_A, normalize=True, scale_each=True),
@@ -92,7 +92,7 @@ class AgingGAN(pl.LightningModule):
                                                  make_grid(self.generated_B, normalize=True, scale_each=True),
                                                  self.current_epoch)
                 self.genA2B.train()
-                self.genb2A.train()
+                self.genB2A.train()
             return output
 
         if optimizer_idx == 1:
@@ -145,9 +145,15 @@ class AgingGAN(pl.LightningModule):
             transforms.RandomHorizontalFlip(),
             transforms.Resize((self.hparams['img_size'] + 50, self.hparams['img_size'] + 50)),
             transforms.RandomCrop(self.hparams['img_size']),
+<<<<<<< HEAD
+            transforms.RandomRotation(degrees=(0, 90)),
+            transforms.RandomPerspective(p=0.4),
+            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.3),
+=======
             #transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.3),
             #transforms.RandomPerspective(p=0.5),
             transforms.RandomRotation(degrees=(0, int(self.hparams['augment_rotation']))),
+>>>>>>> a88f38681cd8d94222578a0d0c4890805c62f36a
             transforms.ToTensor(),
             transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
         ])
