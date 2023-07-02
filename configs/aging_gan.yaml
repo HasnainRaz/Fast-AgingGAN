@@ -21,5 +21,6 @@ img_size: 256
 batch_size: 3
 num_workers: 4
 epochs: 100
+augment_rotation: 80
 gpus:
   - 1

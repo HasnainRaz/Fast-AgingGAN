@@ -15,7 +15,7 @@ class AgingGAN(pl.LightningModule):
 
     def __init__(self, hparams):
         super(AgingGAN, self).__init__()
-        self.hparams = hparams
+        self.save_hyperparameters(hparams)
         self.genA2B = Generator(hparams['ngf'], n_residual_blocks=hparams['n_blocks'])
         self.genB2A = Generator(hparams['ngf'], n_residual_blocks=hparams['n_blocks'])
         self.disGA = Discriminator(hparams['ndf'])
@@ -67,6 +67,8 @@ class AgingGAN(pl.LightningModule):
                 'loss': g_loss,
                 'log': {'Loss/Generator': g_loss}
             }
+            self.log('Loss/Generator', g_loss)
+
             self.generated_B = fake_B
             self.generated_A = fake_A
 
@@ -75,6 +77,10 @@ class AgingGAN(pl.LightningModule):
 
             # Log to tb
             if batch_idx % 500 == 0:
+                self.genA2B.eval()
+                self.genB2A.eval()
+                fake_A = self.genB2A(real_B)
+                fake_B = self.genA2B(real_A)
                 self.logger.experiment.add_image('Real/A', make_grid(self.real_A, normalize=True, scale_each=True),
                                                  self.current_epoch)
                 self.logger.experiment.add_image('Real/B', make_grid(self.real_B, normalize=True, scale_each=True),
@@ -85,6 +91,8 @@ class AgingGAN(pl.LightningModule):
                 self.logger.experiment.add_image('Generated/B',
                                                  make_grid(self.generated_B, normalize=True, scale_each=True),
                                                  self.current_epoch)
+                self.genA2B.train()
+                self.genB2A.train()
             return output
 
         if optimizer_idx == 1:
@@ -116,6 +124,8 @@ class AgingGAN(pl.LightningModule):
                 'loss': d_loss,
                 'log': {'Loss/Discriminator': d_loss}
             }
+            self.log('Loss/Discriminator', d_loss)
+
             return output
 
     def configure_optimizers(self):
@@ -131,9 +141,13 @@ class AgingGAN(pl.LightningModule):
 
     def train_dataloader(self):
         train_transform = transforms.Compose([
+            transforms.ToPILImage(),
             transforms.RandomHorizontalFlip(),
-            transforms.Resize((self.hparams['img_size'] + 30, self.hparams['img_size'] + 30)),
+            transforms.Resize((self.hparams['img_size'] + 50, self.hparams['img_size'] + 50)),
             transforms.RandomCrop(self.hparams['img_size']),
+            #transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.3),
+            #transforms.RandomPerspective(p=0.5),
+            transforms.RandomRotation(degrees=(0, int(self.hparams['augment_rotation']))),
             transforms.ToTensor(),
             transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
         ])
