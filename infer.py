@@ -28,7 +28,7 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
     ])
-    nr_images = len(image_paths) if len(image_paths) < 6 else 6
+    nr_images = len(image_paths) if len(image_paths) >= 6 else 6
     fig, ax = plt.subplots(2, nr_images, figsize=(20, 10))
     random.shuffle(image_paths)
     for i in range(nr_images):
